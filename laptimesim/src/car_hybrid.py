@@ -111,7 +111,7 @@ class CarHybrid(Car):
 
     def plot_power_engine(self) -> None:
         # plot
-        n_range = np.arange(7000.0, 15100.0, 100.0) / 60.0  # [1/s]
+        n_range = np.arange(1000.0, 7000.0, 100.0) / 60.0  # [1/s]
 
         plt.figure()
         plt.plot(n_range * 60.0, self.__power_engine(n=n_range) / 1000.0 * 1.36)

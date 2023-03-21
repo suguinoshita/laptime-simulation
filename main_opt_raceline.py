@@ -312,9 +312,9 @@ if __name__ == '__main__':
 
     # F1 ---------------------------------------------------------------------------------------------------------------
 
-    track_pars_ = {"location": "Austin",
-                   "track_length": 5513.0,
-                   "track_width": None}
+    # track_pars_ = {"location": "Austin",
+    #                "track_length": 5513.0,
+    #                "track_width": None}
 
     # track_pars_ = {"location": "Budapest",
     #                "track_length": 4381.0,
@@ -352,9 +352,9 @@ if __name__ == '__main__':
     #                "track_length": 5412.0,
     #                "track_width": None}
 
-    # track_pars_ = {"location": "SaoPaulo",
-    #                "track_length": 4309.0,
-    #                "track_width": None}
+    track_pars_ = {"location": "SaoPaulo",
+                   "track_length": 4309.0,
+                   "track_width": None}
 
     # track_pars_ = {"location": "Sepang",
     #                "track_length": 5543.0,

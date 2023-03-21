@@ -422,7 +422,7 @@ class Track(object):
         ax1 = fig.add_subplot(111)
 
         # plot raceline
-        ax1.plot(self.raceline[:, 0], self.raceline[:, 1], "k-")
+        ax1.plot(self.raceline[:, 0], self.raceline[:, 1], "r-")
 
         # plot DRS zones
         if self.pars_track["use_drs1"]:
@@ -488,10 +488,10 @@ class Track(object):
 
         # set track picture as background
         if mapfilepath:
-            x_min = np.amin(self.raceline[:, 0])
-            x_max = np.amax(self.raceline[:, 0])
-            y_min = np.amin(self.raceline[:, 1])
-            y_max = np.amax(self.raceline[:, 1])
+            x_min = np.amin(self.raceline[:, 0])-235
+            x_max = np.amax(self.raceline[:, 0])+365
+            y_min = np.amin(self.raceline[:, 1])-125
+            y_max = np.amax(self.raceline[:, 1])+190
 
             img = plt.imread(mapfilepath)
             ax1.imshow(img, zorder=0, extent=[x_min, x_max, y_min, y_max])  # [left, right, bottom, top]
