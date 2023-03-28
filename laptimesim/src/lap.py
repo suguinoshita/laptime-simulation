@@ -43,7 +43,10 @@ class Lap(object):
                  "__fuel_cons_cl",
                  "__e_cons_cl",
                  "__tire_loads",
-                 "__e_es_to_e_motor_max")
+                 "__e_es_to_e_motor_max",
+                 "__tps",
+                 "__bps",
+                 "__steer")
 
     # ------------------------------------------------------------------------------------------------------------------
     # CONSTRUCTOR ------------------------------------------------------------------------------------------------------
@@ -80,6 +83,9 @@ class Lap(object):
         self.fuel_cons_cl = np.zeros(trackobj.no_points_cl)     # [kg] consumed fuel mass until current point
         self.e_cons_cl = np.zeros(trackobj.no_points_cl)        # [J] consumed energy until current point
         self.tire_loads = np.zeros((trackobj.no_points, 4))     # [N] tire loads [FL, FR, RL, RR]
+        self.tps = np.zeros(trackobj.no_points_cl)        # [-] Throttle position
+        self.bps = np.zeros(trackobj.no_points_cl)        # [-] Brake Pressure
+        self.steer = np.zeros(trackobj.no_points_cl)        # [deg] Steer angle
 
         # [J/lap] maximum amount of energy allowed to recuperate in e motor
         if self.pars_solver["series"] == 'F1':
@@ -169,6 +175,18 @@ class Lap(object):
     def __set_e_es_to_e_motor_max(self, x: float) -> None: self.__e_es_to_e_motor_max = x
     e_es_to_e_motor_max = property(__get_e_es_to_e_motor_max, __set_e_es_to_e_motor_max)
 
+    def __get_tps(self) -> np.ndarray: return self.__tps
+    def __set_tps(self, x: np.ndarray) -> None: self.__tps = x
+    tps = property(__get_tps, __set_tps)
+
+    def __get_bps(self) -> np.ndarray: return self.__bps
+    def __set_bps(self, x: np.ndarray) -> None: self.__bps = x
+    bps = property(__get_bps, __set_bps)
+
+    def __get_steer(self) -> np.ndarray: return self.__steer
+    def __set_steer(self, x: np.ndarray) -> None: self.__steer = x
+    steer = property(__get_steer, __set_steer)
+
     # ------------------------------------------------------------------------------------------------------------------
     # METHODS (CALCULATIONS) -------------------------------------------------------------------------------------------
     # ------------------------------------------------------------------------------------------------------------------
@@ -191,6 +209,9 @@ class Lap(object):
         self.fuel_cons_cl = np.zeros(self.trackobj.no_points_cl)
         self.e_cons_cl = np.zeros(self.trackobj.no_points_cl)
         self.tire_loads = np.zeros((self.trackobj.no_points, 4))
+        self.tps = np.zeros(self.trackobj.no_points_cl)
+        self.bps = np.zeros(self.trackobj.no_points_cl)
+        self.steer = np.zeros(self.trackobj.no_points_cl)
 
         if self.pars_solver["series"] == 'F1':
             self.e_rec_e_motor_max = 2e6  # F1: 2 MJ/lap
@@ -326,7 +347,23 @@ class Lap(object):
         """
         Returned arrays t_cl, vel_cl, n_cl, es_cl and gear_cl are closed, the rest is unclosed.
         """
+        # --------------------------------------------------------------------------------------------------------------
+        # USER INPUT - move to vehicle parametes later -----------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
 
+        # Brake system
+        A_mast = 0.25*3.1415*(30e-3)**2      # [m2] Master cylinder area
+        N_cyl_f = 6         # Number of cylinders on front caliper
+        N_cyl_r = 6         # Number of cylinders on rear caliper
+        A_cyl_f = 5.40*25.4*25.4e-6 * N_cyl_f      # [m2] Total cylinder area on front caliper
+        A_cyl_r = 2.46*25.4*25.4e-6 * N_cyl_r      # [m2] Total cylinder area on rear caliper
+        R_pedal = 5      # [-] Lever on brake pedal
+        D_rotor_f = 13.06*25.4e-3  # [m] Diameter of Front brake rotor
+        D_rotor_r = 13.06*25.4e-3  # [m] Diameter of Rear brake rotor
+        R_tyre = 334e-3        # [m] Tyre radius
+        mu_pads = 0.5
+        brake_phi = 2*A_mast/R_pedal
+        brake_beta = R_tyre/(2*D_rotor_f/2*mu_pads*A_cyl_f + 2*D_rotor_r/2*mu_pads*A_cyl_r)
         # --------------------------------------------------------------------------------------------------------------
         # USER INPUT ---------------------------------------------------------------------------------------------------
         # --------------------------------------------------------------------------------------------------------------
@@ -373,6 +410,18 @@ class Lap(object):
                                 a_x=0.0,
                                 a_y=a_y,
                                 mu=self.trackobj.mu[i])
+
+            # calculate steering angle
+            a = self.driverobj.carobj.pars_general["lf"] # distance of front axle from center of mass[m]
+            b = self.driverobj.carobj.pars_general["lr"] # distance of rear axle from center of mass[m]
+            CF = 800*180/3.1415  # [N/deg] Front tyres cornering stiffness
+            CR = 800*180/3.1415  # [N/deg] Rear tyres cornering stiffness
+            StR = 10 # steering rack ratio
+            C = np.matrix([[CF, CF + CR], [CF * a, CF * a + CR * b]])
+            C = 2 * C  # steering model matrix
+            AA = np.matrix([[self.driverobj.carobj.pars_general["m"] * a_y],[0]])
+            bicycle = np.linalg.solve(C , AA)
+            self.steer[i] = (bicycle[0]+np.arctan((a+b)*self.trackobj.kappa[i]) )*StR
 
             # ----------------------------------------------------------------------------------------------------------
             # CASE 1: some tire potential is left and no velocity limit is set -> accelerate ---------------------------
@@ -445,6 +494,11 @@ class Lap(object):
                        - self.driverobj.carobj.roll_res(f_z_tot=float(np.sum(self.tire_loads[i]))))
                        / self.driverobj.carobj.pars_general["m"])
 
+                # calculate tps
+                ax_eng = f_x_powert / self.driverobj.carobj.pars_general["m"]
+                ax_tyre = f_x_poss / self.driverobj.carobj.pars_general["m"]
+                self.tps[i] = min(ax_eng,a_x_max)/ax_eng
+
                 # calculate velocity in the next point
                 self.vel_cl[i + 1] = math.sqrt(math.pow(self.vel_cl[i], 2) + 2 * a_x * self.trackobj.stepsize)
 
@@ -496,6 +550,9 @@ class Lap(object):
 
                 if not self.driverobj.carobj.powertrain_type == "electric" and self.es_cl[i + 1] < 0.0:
                     self.es_cl[i + 1] = 0.0
+
+                #self.tps[i] = 0.0
+                #self.bps[i] = 0.0
 
                 # increment
                 i += 1
@@ -568,6 +625,9 @@ class Lap(object):
                                          f_y_r=f_y_r,
                                          force_use_all_wheels=True,
                                          limit_braking_weak_side=self.pars_solver["limit_braking_weak_side"])
+
+                        # calculate brake pressure
+                        self.bps[i] = brake_beta*f_x_poss
 
                         # calculate deceleration
                         a_x = (-(f_x_poss + self.driverobj.carobj.air_res(vel=vel_tmp, drs=False)
@@ -702,6 +762,8 @@ class Lap(object):
                 # reset longitudinal acceleration for next step (almost zero during maximum cornering)
                 a_x = 0.0
 
+        self.tps[i] = 1
+
         # --------------------------------------------------------------------------------------------------------------
         # PREPARE FOR RETURN -------------------------------------------------------------------------------------------
         # --------------------------------------------------------------------------------------------------------------
@@ -822,15 +884,37 @@ class Lap(object):
         plt.rcParams["font.size"] = 16.0
 
         # create figure
-        plt.figure(1, figsize=(12.0, 9.0))
+        plt.figure(2, figsize=(12.0, 9.0))
 
         # --------------------------------------------------------------------------------------------------------------
         # VELOCITY PROFILE ---------------------------------------------------------------------------------------------
         # --------------------------------------------------------------------------------------------------------------
-
         # plot velocity profile (two columns)
         plt.subplot(2, 1, 1)
         plt.plot(self.trackobj.dists_cl, self.vel_cl * 3.6, "k-")
+        plt.plot([self.trackobj.pars_track["s12"],self.trackobj.pars_track["s12"]], [0,250],  "y--")
+        plt.plot([self.trackobj.pars_track["s23"],self.trackobj.pars_track["s23"]], [0,250],  "y--")
+        max_index = np.where(self.vel_cl == np.amax(self.vel_cl))[0]
+        plt.annotate("{:.2f}km/h".format(self.vel_cl[max_index][0] * 3.6), (self.trackobj.dists_cl[max_index], self.vel_cl[max_index] * 3.6), fontsize=10)
+        plt.annotate('S1-S2', (self.trackobj.pars_track["s12"], 240), fontsize=10)
+        plt.annotate('S2-S3', (self.trackobj.pars_track["s23"], 240), fontsize=10)
+        plt.annotate('Start', (0, 240), fontsize=10)
+        plt.annotate('Finish', (4100, 240), fontsize=10)
+        plt.annotate('T1', (300, 5), fontsize=10)
+        plt.annotate('T2', (400, 5), fontsize=10)
+        plt.annotate('T3', (600, 5), fontsize=10)
+        plt.annotate('T4', (1400, 5), fontsize=10)
+        plt.annotate('T5', (1550, 5), fontsize=10)
+        plt.annotate('T6', (1950, 5), fontsize=10)
+        plt.annotate('T7', (2100, 5), fontsize=10)
+        plt.annotate('T8', (2250, 5), fontsize=10)
+        plt.annotate('T9', (2400, 5), fontsize=10)
+        plt.annotate('T10', (2650, 5), fontsize=10)
+        plt.annotate('T11', (2950, 5), fontsize=10)
+        plt.annotate('T12', (3150, 5), fontsize=10)
+        plt.annotate('T13', (3300, 5), fontsize=10)
+        plt.annotate('T14', (3500, 5), fontsize=10)
+        plt.annotate('T15', (3750, 5), fontsize=10)
         plt.xlabel("distance in m")
         plt.ylabel("velocity in km/h")
         plt.grid()
@@ -970,6 +1054,92 @@ class Lap(object):
         fig.tight_layout()
         plt.show()
 
+    def plot_datalog(self):
+        # set bigger font size
+        plt.rcParams["font.size"] = 16.0
+
+        # create figure
+        #plt.figure(2, figsize=(12.0, 9.0))
+
+        # --------------------------------------------------------------------------------------------------------------
+        # VELOCITY PROFILE ---------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
+        # plot velocity profile (two columns)
+        fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, figsize=(12.0, 9.0))
+        ax1.plot(self.trackobj.dists_cl, self.vel_cl * 3.6, "k-")
+        ax1.plot([self.trackobj.pars_track["s12"], self.trackobj.pars_track["s12"]], [0, 250], "y--")
+        ax1.plot([self.trackobj.pars_track["s23"], self.trackobj.pars_track["s23"]], [0, 250], "y--")
+        max_index = np.where(self.vel_cl == np.amax(self.vel_cl))[0]
+        ax1.annotate("{:.2f}km/h".format(self.vel_cl[max_index][0] * 3.6),
+                     (self.trackobj.dists_cl[max_index], self.vel_cl[max_index] * 3.6), fontsize=10)
+        ax1.annotate('S1-S2', (self.trackobj.pars_track["s12"], 240), fontsize=10)
+        ax1.annotate('S2-S3', (self.trackobj.pars_track["s23"], 240), fontsize=10)
+        ax1.annotate('Start', (0, 240), fontsize=10)
+        ax1.annotate('Finish', (4100, 240), fontsize=10)
+        ax1.annotate('T1', (300, 5), fontsize=10)
+        ax1.annotate('T2', (400, 5), fontsize=10)
+        ax1.annotate('T3', (600, 5), fontsize=10)
+        ax1.annotate('T4', (1400, 5), fontsize=10)
+        ax1.annotate('T5', (1550, 5), fontsize=10)
+        ax1.annotate('T6', (1950, 5), fontsize=10)
+        ax1.annotate('T7', (2100, 5), fontsize=10)
+        ax1.annotate('T8', (2250, 5), fontsize=10)
+        ax1.annotate('T9', (2400, 5), fontsize=10)
+        ax1.annotate('T10', (2650, 5), fontsize=10)
+        ax1.annotate('T11', (2950, 5), fontsize=10)
+        ax1.annotate('T12', (3150, 5), fontsize=10)
+        ax1.annotate('T13', (3300, 5), fontsize=10)
+        ax1.annotate('T14', (3500, 5), fontsize=10)
+        ax1.annotate('T15', (3750, 5), fontsize=10)
+        ax1.set(xlabel='distance in m', ylabel='velocity in km/h')
+        ax1.grid()
+
+        # plot global title
+        title = "lap time: %.3f s" % self.t_cl[-1]
+        fig.suptitle(title)
+
+        # --------------------------------------------------------------------------------------------------------------
+        # TPS ----------------------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
+        # plot throttle profile
+        ax2.plot(self.trackobj.dists_cl, self.tps * 100, "b-")
+        ax2.plot([self.trackobj.pars_track["s12"], self.trackobj.pars_track["s12"]], [0, 100], "y--")
+        ax2.plot([self.trackobj.pars_track["s23"], self.trackobj.pars_track["s23"]], [0, 100], "y--")
+        ax2.annotate('S1-S2', (self.trackobj.pars_track["s12"], 0.1), fontsize=10)
+        ax2.annotate('S2-S3', (self.trackobj.pars_track["s23"], 0.1), fontsize=10)
+        ax2.set(ylabel='Throttle')
+        ax2.grid()
+
+        # --------------------------------------------------------------------------------------------------------------
+        # BPS ----------------------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
+        # plot brake profile
+        ax3.plot(self.trackobj.dists_cl, self.bps / np.amax(self.bps), "r-")
+        ax3.plot([self.trackobj.pars_track["s12"], self.trackobj.pars_track["s12"]], [0, 1], "y--")
+        ax3.plot([self.trackobj.pars_track["s23"], self.trackobj.pars_track["s23"]], [0, 1], "y--")
+        ax3.annotate('S1-S2', (self.trackobj.pars_track["s12"], 1), fontsize=10)
+        ax3.annotate('S2-S3', (self.trackobj.pars_track["s23"], 1), fontsize=10)
+        ax3.set(ylabel='Brake pedal')
+        ax3.grid()
+
+        # --------------------------------------------------------------------------------------------------------------
+        # Steering -----------------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
+        # plot steering
+        ax4.plot(self.trackobj.dists_cl, self.steer, "g-")
+        ax4.plot([self.trackobj.pars_track["s12"], self.trackobj.pars_track["s12"]], [np.amin(self.steer), np.amax(self.steer)], "y--")
+        ax4.plot([self.trackobj.pars_track["s23"], self.trackobj.pars_track["s23"]], [np.amin(self.steer), np.amax(self.steer)], "y--")
+        ax4.annotate('S1-S2', (self.trackobj.pars_track["s12"], np.amin(self.steer)), fontsize=10)
+        ax4.annotate('S2-S3', (self.trackobj.pars_track["s23"], np.amin(self.steer)), fontsize=10)
+        ax4.set(ylabel='Steer')
+        ax4.grid()
+
+        # set tight plot layout and show plot
+        plt.tight_layout()
+        plt.show()
+
+        # reset font size
+        plt.rcParams["font.size"] = 10.0
 
 # ----------------------------------------------------------------------------------------------------------------------
 # TESTING --------------------------------------------------------------------------------------------------------------

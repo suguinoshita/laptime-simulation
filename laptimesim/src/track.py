@@ -488,8 +488,8 @@ class Track(object):
 
         # set track picture as background
         if mapfilepath:
-            x_min = np.amin(self.raceline[:, 0])-235
-            x_max = np.amax(self.raceline[:, 0])+365
+            x_min = np.amin(self.raceline[:, 0])-232
+            x_max = np.amax(self.raceline[:, 0])+360
             y_min = np.amin(self.raceline[:, 1])-125
             y_max = np.amax(self.raceline[:, 1])+190
 
