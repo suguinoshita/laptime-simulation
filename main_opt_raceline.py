@@ -457,7 +457,7 @@ if __name__ == '__main__':
     # iqp_iters_min:            [-] minimum number of iterations for the IQP
     # iqp_curverror_allowed:    [rad/m] maximum allowed curvature error for the IQP
 
-    optim_opts_mincurv_ = {"width_opt": 1.5,
+    optim_opts_mincurv_ = {"width_opt": 7,
                            "curvlim": 0.12,
                            "iqp_iters_min": 3,
                            "iqp_curverror_allowed": 0.01}

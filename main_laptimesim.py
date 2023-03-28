@@ -131,6 +131,8 @@ def main(track_opts: dict,
         car = laptimesim.src.car_hybrid.CarHybrid(parfilepath=parfilepath)
     elif solver_opts["series"] == "FE":
         car = laptimesim.src.car_electric.CarElectric(parfilepath=parfilepath)
+    elif solver_opts["series"] == "Stock Light":
+        car = laptimesim.src.car_hybrid.CarHybrid(parfilepath=parfilepath)
     else:
         raise IOError("Unknown racing series!")
 
@@ -291,6 +293,7 @@ def main(track_opts: dict,
     if not sa_opts["use_sa"]:
         if debug_opts["use_plot"]:
             lap.plot_overview()
+            lap.plot_datalog()
             # lap.plot_revs_gears()
 
     else:

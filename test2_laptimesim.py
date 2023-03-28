@@ -15,7 +15,7 @@ def test_laptimesim():
                    "use_drs2": False,
                    "use_pit": False}
     solver_opts_ = {"vehicle": "StockLight_01.ini",
-                    "series": "F1",
+                    "series": "Stock Light",
                     "limit_braking_weak_side": 'FA',
                     "v_start": 100.0 / 3.6,
                     "find_v_start": True,
@@ -37,7 +37,7 @@ def test_laptimesim():
                 "range_1": [733.0, 833.0, 5],
                 "range_2": None}
     debug_opts_ = {"use_plot": True,
-                   "use_debug_plots": True,
+                   "use_debug_plots": False,
                    "use_plot_comparison_tph": False,
                    "use_print": False,
                    "use_print_result": False}
